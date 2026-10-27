@@ -1,0 +1,29 @@
+{
+  "name": "cc-relay",
+  "version": "0.1.0",
+  "description": "Let Claude Code sessions on a Tailscale tailnet ask each other questions, answered by a read-only sandbox.",
+  "type": "module",
+  "bin": {
+    "cc-relay": "bin/cc-relay.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "probe": "node scripts/probe.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": "github:vladt99/cc-relay",
+  "keywords": ["claude-code", "mcp", "tailscale", "agents"],
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
+  }
+}
