@@ -36,8 +36,14 @@ function protectConfig() {
 }
 
 export async function runSetup(urlArg) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const ask = async (q, def = '') => (await rl.question(def ? `${q} [${def}]: ` : `${q}: `)).trim() || def;
+  // Without a terminal (e.g. `! cc-relay setup …` inside Claude Code) nobody can
+  // answer prompts, so take the defaults and say so.
+  const interactive = Boolean(process.stdin.isTTY);
+  const rl = interactive ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  const ask = async (q, def = '') => {
+    if (!rl) { console.log(`${q} [${def}]: ${def}  (no terminal, using default)`); return def; }
+    return (await rl.question(def ? `${q} [${def}]: ` : `${q}: `)).trim() || def;
+  };
   const old = cfg.load() || cfg.DEFAULTS;
 
   console.log('\n── cc-relay setup ─────────────────────────────────────────────');
@@ -46,9 +52,13 @@ export async function runSetup(urlArg) {
   console.log('in a project folder.\n');
 
   const me = await ts.self().catch(() => null);
-  if (!me?.running) console.log('! Tailscale is not running; start it and log in to the team tailnet.\n');
+  if (!me?.running) {
+    throw new Error('Tailscale is not running. Open the Tailscale app (or run `tailscale up`), make sure ' +
+      'you\'re on the team tailnet (`tailscale switch --list`), then run setup again.');
+  }
   else console.log(`You are ${me.login} on tailnet "${me.tailnet}".\n`);
 
+  if (!urlArg && !interactive) throw new Error('pass the hub address: cc-relay setup ws://<hub>:7777');
   const url = urlArg || await ask('Hub address (printed by `cc-relay hub`)', old.url || '');
   if (!/^wss?:\/\//.test(url)) throw new Error(`not a ws:// address: ${url}`);
 
@@ -57,7 +67,9 @@ export async function runSetup(urlArg) {
   if (owner) console.log(`Hub ${host} is run by ${owner.login} (${owner.host}).`);
   const check = await probeHub(url);
   console.log(check.ok ? `Connected as ${check.id}; ${check.peers} other session(s) online.\n` : `! Could not join hub: ${check.error}\n`);
-  if (!check.ok && (await ask('Continue anyway? (y/n)', 'n')).toLowerCase() !== 'y') process.exit(1);
+  if (!check.ok && (await ask('Continue anyway? (y/n)', 'n')).toLowerCase() !== 'y') {
+    throw new Error('could not reach the hub. Is it running, and are you both on the same tailnet? Nothing was saved.');
+  }
 
   const { mode, projects, allowFrom, ...keep } = old; // drop settings from older versions
   cfg.save({ ...keep, url, hubLogin: owner?.login || null });
@@ -74,5 +86,5 @@ export async function runSetup(urlArg) {
   console.log('\nDone. Restart Claude Code to get the relay_* tools.');
   console.log('To let teammates ask about a project, run this in its folder and keep it open:');
   console.log('\n    cc-relay share\n');
-  rl.close();
+  rl?.close();
 }
